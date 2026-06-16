@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { analyseText } from "@/lib/services/nutrition";
 import type { MealDetection } from "@/lib/domain/types";
 
@@ -150,6 +151,7 @@ type Phase = "closed" | "snap" | "text" | "detecting" | "results";
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function FitnessScreen() {
+  const router = useRouter();
   const [meals, setMeals] = useState<MealRow[]>(INITIAL_MEALS);
   const [phase, setPhase] = useState<Phase>("closed");
   const [mode, setMode] = useState<"photo" | "text">("photo");
@@ -381,11 +383,15 @@ export function FitnessScreen() {
         </div>
 
         {/* AI nutrition strip */}
-        <div style={{
-          margin: "16px 18px 0",
-          background: "var(--accent-soft)", border: "1px solid var(--accent-soft-2)",
-          borderRadius: 18, padding: "15px 16px",
-        }}>
+        <div
+          role="button"
+          onClick={() => router.push("/ask")}
+          style={{
+            margin: "16px 18px 0",
+            background: "var(--accent-soft)", border: "1px solid var(--accent-soft-2)",
+            borderRadius: 18, padding: "15px 16px", cursor: "pointer",
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
             <div style={{
               width: 32, height: 32, borderRadius: 10, flexShrink: 0,

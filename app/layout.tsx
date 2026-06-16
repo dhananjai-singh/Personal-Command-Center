@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
 
@@ -11,7 +11,21 @@ const hanken = Hanken_Grotesk({
 export const metadata: Metadata = {
   title: "Command Center",
   description: "Your personal command center — tasks, habits, fitness, notes, and AI.",
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Command Center",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f1ece1",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 // Runs before React hydrates: reads localStorage and sets data-theme so there's

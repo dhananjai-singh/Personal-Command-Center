@@ -1,5 +1,32 @@
 @import "tailwindcss";
 
+/* ─── Native-app feel ──────────────────────────────────────────────────────
+   Kills the mobile-browser tells: grey tap-flash on buttons, rubber-band
+   overscroll / pull-to-refresh, long-press callout, and double-tap zoom.
+   Inputs stay selectable so editing meals/notes still works.
+   ───────────────────────────────────────────────────────────────────────── */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior-y: none;
+}
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+input,
+textarea,
+[contenteditable] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* ─── 5-palette theme system ───────────────────────────────────────────────
    All tokens are CSS custom properties. The active theme is set by
    data-theme on <html>. A tiny inline script in layout.tsx reads

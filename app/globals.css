@@ -1,0 +1,370 @@
+@import "tailwindcss";
+
+/* ─── 5-palette theme system ───────────────────────────────────────────────
+   All tokens are CSS custom properties. The active theme is set by
+   data-theme on <html>. A tiny inline script in layout.tsx reads
+   localStorage before paint so there's no flash.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme="paper"] {
+  --bg:              #f1ece1;
+  --bg-outer:        #e8e2d4;
+  --side:            #f6f1e7;
+  --card:            #fdfaf3;
+  --card-hi:         #fffdf8;
+  --card-soft:       #f7f2e7;
+  --line:            #e6dfd0;
+  --line-2:          #ece4d4;
+  --line-3:          #e2d9c7;
+  --row-line:        #efe8d9;
+  --task-line:       #f0e9da;
+  --ink:             #2d2a24;
+  --ink-2:           #4a463d;
+  --ink-soft:        #6f6a5e;
+  --ink-faint:       #9a9489;
+  --ink-mute:        #a59f93;
+  --ink-dim:         #b7b1a4;
+  --accent:          #17a6b3;
+  --accent-ink:      #0d7a85;
+  --accent-soft:     #e7f4f5;
+  --accent-soft-2:   #d4f3f5;
+  --on-accent:       #ffffff;
+  --on-accent-2:     #eafafa;
+  --track:           #ece4d4;
+  --dot-track:       #e3dac8;
+  --check-border:    #d8cfbd;
+  --avatar:          #d7cdb8;
+  --avatar-ink:      #5b5648;
+  --done-bg:         #e9f4f4;
+  --cat-studies:     #6a6fb0;
+  --cat-studies-bg:  #e9e9f4;
+  --cat-work:        #b07a55;
+  --cat-work-bg:     #f2e7dd;
+  --cat-personal:    #6e9069;
+  --cat-personal-bg: #e8efe3;
+  --slip-bg:         #f7efe6;
+  --slip-border:     #ecdfce;
+  --slip-dot:        #c08763;
+  --event-dot:       #c9a06f;
+  --card-shadow:     0 6px 24px rgba(120,105,70,0.05);
+  --protein:         #b07a55;
+  --protein-bg:      #f2e7dd;
+  --carbs:           #6a6fb0;
+  --carbs-bg:        #e9e9f4;
+  --fat:             #6e9069;
+  --fat-bg:          #e8efe3;
+}
+
+[data-theme="cloud"] {
+  --event-dot: #b0b5e2;
+  --card-shadow: 0 6px 24px rgba(40,45,90,0.07);
+}
+
+[data-theme="blush"] {
+  --event-dot: #e0a890;
+  --card-shadow: 0 6px 24px rgba(150,85,65,0.07);
+}
+
+[data-theme="mist"] {
+  --event-dot: #a7c2b0;
+  --card-shadow: 0 6px 24px rgba(55,85,65,0.07);
+}
+
+[data-theme="ink"] {
+  --event-dot: #c9a06f;
+  --card-shadow: 0 8px 28px rgba(0,0,0,0.35);
+}
+
+[data-theme="cloud"] {
+  --bg:              #eceef5;
+  --bg-outer:        #e0e2ed;
+  --side:            #f0f2f9;
+  --card:            #ffffff;
+  --card-hi:         #ffffff;
+  --card-soft:       #eef0f7;
+  --line:            #d8dbe8;
+  --line-2:          #e6e8f1;
+  --line-3:          #d4d7e5;
+  --row-line:        #eaecf4;
+  --task-line:       #edeef5;
+  --ink:             #1f2230;
+  --ink-2:           #383c4e;
+  --ink-soft:        #585d70;
+  --ink-faint:       #8d92a4;
+  --ink-mute:        #a0a5b6;
+  --ink-dim:         #b6bac8;
+  --accent:          #4f5bd5;
+  --accent-ink:      #3b46bf;
+  --accent-soft:     #e7e9fb;
+  --accent-soft-2:   #d9ddf9;
+  --on-accent:       #ffffff;
+  --on-accent-2:     #eef0ff;
+  --track:           #e6e8f1;
+  --dot-track:       #dbdeed;
+  --check-border:    #cccfde;
+  --avatar:          #cccfe6;
+  --avatar-ink:      #474c6b;
+  --done-bg:         #eceefb;
+  --cat-studies:     #5a62c8;
+  --cat-studies-bg:  #e6e7fa;
+  --cat-work:        #c07a4e;
+  --cat-work-bg:     #f4e8de;
+  --cat-personal:    #4f9a86;
+  --cat-personal-bg: #e1f0eb;
+  --slip-bg:         #eceefb;
+  --slip-border:     #d9ddf9;
+  --slip-dot:        #4f5bd5;
+}
+
+[data-theme="blush"] {
+  --bg:              #f5ebe6;
+  --bg-outer:        #ede1da;
+  --side:            #f2e6e0;
+  --card:            #fffaf7;
+  --card-hi:         #fffcfb;
+  --card-soft:       #f6eae4;
+  --line:            #e8d8ce;
+  --line-2:          #f0e2da;
+  --line-3:          #e3d0c5;
+  --row-line:        #f2e4dc;
+  --task-line:       #f3e7e1;
+  --ink:             #322623;
+  --ink-2:           #4d3b34;
+  --ink-soft:        #735f57;
+  --ink-faint:       #a99088;
+  --ink-mute:        #b79f96;
+  --ink-dim:         #cbb3aa;
+  --accent:          #df674c;
+  --accent-ink:      #c24a30;
+  --accent-soft:     #fbe6df;
+  --accent-soft-2:   #f9d7cd;
+  --on-accent:       #ffffff;
+  --on-accent-2:     #fff0eb;
+  --track:           #f0e2da;
+  --dot-track:       #edd8ce;
+  --check-border:    #e1c9be;
+  --avatar:          #e7c8bc;
+  --avatar-ink:      #7c4e3e;
+  --done-bg:         #f8e7e0;
+  --cat-studies:     #8a6fb0;
+  --cat-studies-bg:  #efe9f4;
+  --cat-work:        #b9763f;
+  --cat-work-bg:     #f4e8db;
+  --cat-personal:    #6e9069;
+  --cat-personal-bg: #e8efe3;
+  --slip-bg:         #fbe6df;
+  --slip-border:     #f9d7cd;
+  --slip-dot:        #df674c;
+}
+
+[data-theme="mist"] {
+  --bg:              #e9ede6;
+  --bg-outer:        #dde3d9;
+  --side:            #edf1e9;
+  --card:            #fbfcf9;
+  --card-hi:         #fdfefc;
+  --card-soft:       #edf1e9;
+  --line:            #d9e0d4;
+  --line-2:          #e3e8dc;
+  --line-3:          #d4dccf;
+  --row-line:        #e5e9df;
+  --task-line:       #e9ede3;
+  --ink:             #222a22;
+  --ink-2:           #3a463a;
+  --ink-soft:        #5a685a;
+  --ink-faint:       #8d9b8c;
+  --ink-mute:        #9fad9e;
+  --ink-dim:         #b7c2b5;
+  --accent:          #2f8f63;
+  --accent-ink:      #227a52;
+  --accent-soft:     #e1f0e8;
+  --accent-soft-2:   #d2ebdd;
+  --on-accent:       #ffffff;
+  --on-accent-2:     #ecfaf2;
+  --track:           #e3e8dc;
+  --dot-track:       #d8dfcf;
+  --check-border:    #c8d0c1;
+  --avatar:          #cbd6c2;
+  --avatar-ink:      #46563f;
+  --done-bg:         #e1f0e8;
+  --cat-studies:     #5f76b0;
+  --cat-studies-bg:  #e7eaf4;
+  --cat-work:        #b07a55;
+  --cat-work-bg:     #f1e7dd;
+  --cat-personal:    #578f6e;
+  --cat-personal-bg: #e2efe7;
+  --slip-bg:         #e1f0e8;
+  --slip-border:     #d2ebdd;
+  --slip-dot:        #2f8f63;
+}
+
+[data-theme="ink"] {
+  --bg:              #14171c;
+  --bg-outer:        #0d1015;
+  --side:            #181d24;
+  --card:            #1d2128;
+  --card-hi:         #232831;
+  --card-soft:       #20252d;
+  --line:            #252b34;
+  --line-2:          #2a2f38;
+  --line-3:          #2c333d;
+  --row-line:        #2a2f38;
+  --task-line:       #262b33;
+  --ink:             #f0ece4;
+  --ink-2:           #d4d0c7;
+  --ink-soft:        #9aa0aa;
+  --ink-faint:       #737985;
+  --ink-mute:        #7e848f;
+  --ink-dim:         #5f656f;
+  --accent:          #2cc6d4;
+  --accent-ink:      #7ce2ea;
+  --accent-soft:     #16323a;
+  --accent-soft-2:   #0c2a30;
+  --on-accent:       #07222a;
+  --on-accent-2:     #07222a;
+  --track:           #2a2f38;
+  --dot-track:       #2f343d;
+  --check-border:    #3a414b;
+  --avatar:          #2f3742;
+  --avatar-ink:      #c8cdd6;
+  --done-bg:         #15302f;
+  --cat-studies:     #8e94e6;
+  --cat-studies-bg:  #24273c;
+  --cat-work:        #d99e72;
+  --cat-work-bg:     #34281d;
+  --cat-personal:    #6fb88e;
+  --cat-personal-bg: #1d3128;
+  --slip-bg:         #1d2128;
+  --slip-border:     #2a2f38;
+  --slip-dot:        #2cc6d4;
+}
+
+/* ─── Tailwind v4: map CSS vars to theme tokens ────────────────────────── */
+@theme inline {
+  --color-bg:              var(--bg);
+  --color-bg-outer:        var(--bg-outer);
+  --color-side:            var(--side);
+  --color-card:            var(--card);
+  --color-card-hi:         var(--card-hi);
+  --color-card-soft:       var(--card-soft);
+  --color-line:            var(--line);
+  --color-line-2:          var(--line-2);
+  --color-line-3:          var(--line-3);
+  --color-row-line:        var(--row-line);
+  --color-task-line:       var(--task-line);
+  --color-ink:             var(--ink);
+  --color-ink-2:           var(--ink-2);
+  --color-ink-soft:        var(--ink-soft);
+  --color-ink-faint:       var(--ink-faint);
+  --color-ink-mute:        var(--ink-mute);
+  --color-ink-dim:         var(--ink-dim);
+  --color-accent:          var(--accent);
+  --color-accent-ink:      var(--accent-ink);
+  --color-accent-soft:     var(--accent-soft);
+  --color-accent-soft-2:   var(--accent-soft-2);
+  --color-on-accent:       var(--on-accent);
+  --color-on-accent-2:     var(--on-accent-2);
+  --color-track:           var(--track);
+  --color-dot-track:       var(--dot-track);
+  --color-check-border:    var(--check-border);
+  --color-avatar:          var(--avatar);
+  --color-avatar-ink:      var(--avatar-ink);
+  --color-done-bg:         var(--done-bg);
+  --color-cat-studies:     var(--cat-studies);
+  --color-cat-studies-bg:  var(--cat-studies-bg);
+  --color-cat-work:        var(--cat-work);
+  --color-cat-work-bg:     var(--cat-work-bg);
+  --color-cat-personal:    var(--cat-personal);
+  --color-cat-personal-bg: var(--cat-personal-bg);
+  --color-slip-bg:         var(--slip-bg);
+  --color-slip-border:     var(--slip-border);
+  --color-slip-dot:        var(--slip-dot);
+
+  --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────── */
+html {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+/* scrollbar thin for scroll areas */
+.mscroll::-webkit-scrollbar { display: none; }
+.mscroll { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── Keyframes ─────────────────────────────────────────────────────────── */
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+@keyframes ringFade {
+  0%   { box-shadow: 0 0 0 0   var(--accent-soft-2); }
+  40%  { box-shadow: 0 0 0 6px var(--accent-soft-2); }
+  100% { box-shadow: 0 0 0 0   transparent; }
+}
+
+@keyframes chipPop {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50%       { opacity: 1; }
+}
+
+@keyframes scanline {
+  0%   { top: 0; }
+  100% { top: 100%; }
+}
+
+@keyframes popItem {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%       { opacity: 1;    transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Utilities not in Tailwind by default ──────────────────────────────── */
+.animate-card-in   { animation: cardIn  0.42s cubic-bezier(.2,.8,.2,1) both; }
+.animate-ring-fade { animation: ringFade 2.2s ease-out both; }
+.animate-chip-pop  { animation: chipPop 0.18s cubic-bezier(.2,.8,.2,1) both; }
+.animate-sheet-up  { animation: sheetUp 0.33s cubic-bezier(.2,.8,.2,1) both; }
+.animate-fade-in   { animation: fadeIn  0.25s ease both; }
+.animate-toast-in  { animation: toastIn 0.3s cubic-bezier(.2,.8,.2,1) both; }
+.animate-pulse-dot { animation: pulse   1s ease-in-out infinite; }

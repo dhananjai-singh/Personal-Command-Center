@@ -69,20 +69,33 @@ function weekStrip(now: Date) {
   });
 }
 
-// Show the resolved date the AI computed (e.g. "Wed, Jun 24 · 2:00 PM"),
-// not the vague relative word. Falls back to the model's label, then "—".
-function formatDue(iso: string | null | undefined, fallback: string | null): string {
-  if (iso) {
-    const d = new Date(iso);
-    if (!isNaN(d.getTime())) {
-      const date = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-      const midnight = d.getHours() === 0 && d.getMinutes() === 0;
-      if (midnight) return date;
-      const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      return `${date} · ${time}`;
-    }
-  }
-  return fallback ?? "—";
+// Whole-calendar-day difference (local), ignoring time-of-day.
+function calendarDayDiff(from: Date, to: Date): number {
+  const a = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const b = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000);
+}
+
+// Relative-aware due label, recomputed against `now` (which ticks each minute,
+// so "Tomorrow" automatically becomes just-the-time once the day rolls over):
+//   today    → "2:00 PM"
+//   tomorrow → "Tomorrow · 2:00 PM"
+//   later    → "Thu, Jun 18 · 2:00 PM"
+function formatDue(iso: string | null | undefined, fallback: string | null, now: Date | null): string {
+  if (!iso) return fallback ?? "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return fallback ?? "—";
+
+  const midnight = d.getHours() === 0 && d.getMinutes() === 0;
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const fullDate = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+  if (!now) return midnight ? fullDate : `${fullDate} · ${time}`;
+
+  const diff = calendarDayDiff(now, d);
+  if (diff === 0) return midnight ? "Today" : time;
+  if (diff === 1) return midnight ? "Tomorrow" : `Tomorrow · ${time}`;
+  return midnight ? fullDate : `${fullDate} · ${time}`;
 }
 
 // ─── Empty-state helper ───────────────────────────────────────────────────────
@@ -362,7 +375,7 @@ export function TodayDashboard() {
                       }}>
                         {t.category}
                       </span>
-                      <span style={{ fontSize: 12.5, color: "var(--ink-faint)", fontWeight: 600 }}>{formatDue(t.due_datetime, t.due)}</span>
+                      <span style={{ fontSize: 12.5, color: "var(--ink-faint)", fontWeight: 600 }}>{formatDue(t.due_datetime, t.due, now)}</span>
                     </div>
                   </div>
                 ) : (
@@ -389,7 +402,7 @@ export function TodayDashboard() {
                       {t.category}
                     </span>
                     <span style={{ fontSize: 13, color: "var(--ink-faint)", fontWeight: 600, textAlign: "right", flexShrink: 0, whiteSpace: "nowrap" }}>
-                      {formatDue(t.due_datetime, t.due)}
+                      {formatDue(t.due_datetime, t.due, now)}
                     </span>
                   </>
                 )}

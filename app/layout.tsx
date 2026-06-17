@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   title: "Command Center",
   description: "Your personal command center — tasks, habits, fitness, notes, and AI.",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

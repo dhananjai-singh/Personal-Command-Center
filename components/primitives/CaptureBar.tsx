@@ -240,37 +240,6 @@ export function CaptureBar({ variant = "desktop", onSubmit, parsing = false }: C
         </div>
       )}
 
-      {/* Mobile caption */}
-      {isMobile && !parsing && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 7,
-            marginTop: 9,
-          }}
-        >
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "var(--accent)",
-              display: "block",
-            }}
-          />
-          <span
-            style={{
-              fontSize: 12,
-              color: "var(--ink-mute)",
-              fontWeight: 600,
-            }}
-          >
-            Speak or type — it files itself, no confirm
-          </span>
-        </div>
-      )}
     </div>
   );
 }

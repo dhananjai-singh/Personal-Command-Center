@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { analyseText } from "@/lib/services/nutrition";
+import { useLocalStore } from "@/lib/hooks/useLocalStore";
 import type { MealDetection } from "@/lib/domain/types";
 
-// ── seed data ────────────────────────────────────────────────────────────────
+// ── stored shapes ─────────────────────────────────────────────────────────────
 interface MealRow {
   name: string;
   time: string;
@@ -14,19 +15,22 @@ interface MealRow {
   c: number;
   f: number;
 }
+interface FitStats {
+  steps: number;
+  stepGoal: number;
+  distanceKm: number;
+  activeCal: number;
+  restingHr: number;
+  calGoal: number;
+}
+interface WeightEntry {
+  date: string; // YYYY-MM-DD
+  kg: number;
+}
 
-const INITIAL_MEALS: MealRow[] = [
-  { name: "Greek yogurt & berries", time: "8:10 AM", cal: 240, p: 18, c: 28, f: 6 },
-  { name: "Chicken Caesar wrap",    time: "1:05 PM", cal: 520, p: 34, c: 44, f: 22 },
-  { name: "Cold brew + almonds",    time: "3:40 PM", cal: 180, p: 6,  c: 10, f: 14 },
-];
-
-const STEPS       = 8432;
-const STEP_GOAL   = 10000;
-const CAL_GOAL    = 2200;
-const DISTANCE_KM = 6.1;
-const ACTIVE_CAL  = 540;
-const RESTING_HR  = 58;
+const DEFAULT_STATS: FitStats = {
+  steps: 0, stepGoal: 10000, distanceKm: 0, activeCal: 0, restingHr: 0, calGoal: 2200,
+};
 
 const EXAMPLE_CHIPS = [
   "500g soya chunks",
@@ -50,7 +54,6 @@ async function analyseMeal(opts: { image?: string; text?: string }): Promise<Mea
   } catch {
     /* fall through to local fallback */
   }
-  // Local fallback (text only has a deterministic analyser).
   if (opts.text?.trim()) return analyseText(opts.text);
   return {
     name: "Meal", conf: 50, time: "Now", total: 400, p: 20, c: 40, f: 15,
@@ -58,12 +61,12 @@ async function analyseMeal(opts: { image?: string; text?: string }): Promise<Mea
   };
 }
 
-// ── ProgressRing (inline, 148px) ──────────────────────────────────────────────
+// ── StepsRing ─────────────────────────────────────────────────────────────────
 function StepsRing({ steps, goal }: { steps: number; goal: number }) {
   const r = 64;
   const stroke = 13;
   const circ = 2 * Math.PI * r;
-  const pct = Math.min(steps / goal, 1);
+  const pct = goal > 0 ? Math.min(steps / goal, 1) : 0;
   const offset = circ * (1 - pct);
 
   return (
@@ -99,7 +102,7 @@ function StepsRing({ steps, goal }: { steps: number; goal: number }) {
 function MacroBar({ eaten, goal, p, c, f }: { eaten: number; goal: number; p: number; c: number; f: number }) {
   const pCal = p * 4, cCal = c * 4, fCal = f * 9;
   const sum = Math.max(pCal + cCal + fCal, 1);
-  const fill = Math.min(eaten / goal, 1);
+  const fill = goal > 0 ? Math.min(eaten / goal, 1) : 0;
   const seg = (part: number) => (part / sum) * fill * 100;
 
   return (
@@ -115,7 +118,7 @@ function MacroBar({ eaten, goal, p, c, f }: { eaten: number; goal: number; p: nu
 }
 
 // ── MealListRow ───────────────────────────────────────────────────────────────
-function MealListRow({ meal }: { meal: MealRow }) {
+function MealListRow({ meal, onDelete }: { meal: MealRow; onDelete: () => void }) {
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 13,
@@ -142,7 +145,40 @@ function MealListRow({ meal }: { meal: MealRow }) {
         <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.02em" }}>{meal.cal}</div>
         <div style={{ fontSize: 11, color: "var(--ink-dim)", fontWeight: 700 }}>kcal</div>
       </div>
+      <button
+        onClick={onDelete}
+        aria-label="Delete meal"
+        style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-dim)", fontSize: 16, padding: 4, flexShrink: 0 }}
+      >
+        ×
+      </button>
     </div>
+  );
+}
+
+// ── WeightChart ───────────────────────────────────────────────────────────────
+function WeightChart({ data }: { data: WeightEntry[] }) {
+  const W = 320, H = 120, pad = 14;
+  const kgs = data.map(d => d.kg);
+  const min = Math.min(...kgs);
+  const max = Math.max(...kgs);
+  const span = max - min || 1;
+  const pts = data.map((d, i) => {
+    const x = data.length === 1 ? W / 2 : pad + (i / (data.length - 1)) * (W - 2 * pad);
+    const y = pad + (1 - (d.kg - min) / span) * (H - 2 * pad);
+    return { x, y };
+  });
+  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const area = `${line} L${pts[pts.length - 1].x.toFixed(1)} ${H - pad} L${pts[0].x.toFixed(1)} ${H - pad} Z`;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", height: "auto" }} preserveAspectRatio="xMidYMid meet">
+      <path d={area} fill="var(--accent-soft)" stroke="none" />
+      <path d={line} fill="none" stroke="var(--accent)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+      {pts.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={3.2} fill="var(--card)" stroke="var(--accent)" strokeWidth={2} />
+      ))}
+    </svg>
   );
 }
 
@@ -152,45 +188,58 @@ type Phase = "closed" | "snap" | "text" | "detecting" | "results";
 // ── Main component ────────────────────────────────────────────────────────────
 export function FitnessScreen() {
   const router = useRouter();
-  const [meals, setMeals] = useState<MealRow[]>(INITIAL_MEALS);
+  const [meals, setMeals] = useLocalStore<MealRow[]>("pcc-meals", []);
+  const [stats, setStats] = useLocalStore<FitStats>("pcc-fitstats", DEFAULT_STATS);
+  const [weights, setWeights] = useLocalStore<WeightEntry[]>("pcc-weights", []);
+  const [editingStats, setEditingStats] = useState(false);
+  const [weightDraft, setWeightDraft] = useState("");
+
   const [phase, setPhase] = useState<Phase>("closed");
   const [mode, setMode] = useState<"photo" | "text">("photo");
   const [mealText, setMealText] = useState("");
-  const [photo, setPhoto] = useState<string | null>(null); // data URL
+  const [photo, setPhoto] = useState<string | null>(null);
   const [detected, setDetected] = useState<MealDetection | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    tick();
+  }, []);
+  const dateLabel = now ? now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "";
+
   const totalEaten = meals.reduce((a, m) => a + m.cal, 0);
   const macroP = meals.reduce((a, m) => a + m.p, 0);
   const macroC = meals.reduce((a, m) => a + m.c, 0);
   const macroF = meals.reduce((a, m) => a + m.f, 0);
-  const remaining = Math.max(CAL_GOAL - totalEaten, 0);
+  const remaining = Math.max(stats.calGoal - totalEaten, 0);
 
-  const openSnap = useCallback(() => {
-    setPhase("snap");
-    setMode("photo");
-    setDetected(null);
-    setPhoto(null);
-  }, []);
+  const sortedWeights = [...weights].sort((a, b) => a.date.localeCompare(b.date));
+  const latestWeight = sortedWeights[sortedWeights.length - 1];
+  const prevWeight = sortedWeights[sortedWeights.length - 2];
+  const weightDelta = latestWeight && prevWeight ? +(latestWeight.kg - prevWeight.kg).toFixed(1) : null;
 
+  const logWeight = useCallback(() => {
+    const kg = parseFloat(weightDraft);
+    if (!kg || kg <= 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    setWeights(prev => [...prev.filter(w => w.date !== today), { date: today, kg }]);
+    setWeightDraft("");
+  }, [weightDraft, setWeights]);
+
+  const setStat = (key: keyof FitStats, val: number) =>
+    setStats(prev => ({ ...prev, [key]: Number.isFinite(val) ? val : 0 }));
+
+  // ── meal capture flow ───────────────────────────────────────────────────────
+  const openSnap = useCallback(() => { setPhase("snap"); setMode("photo"); setDetected(null); setPhoto(null); }, []);
   const openText = useCallback(() => {
-    setPhase("text");
-    setMode("text");
-    setMealText("");
-    setDetected(null);
+    setPhase("text"); setMode("text"); setMealText(""); setDetected(null);
     setTimeout(() => textRef.current?.focus(), 120);
   }, []);
+  const closeSheet = useCallback(() => { setPhase("closed"); setDetected(null); setMealText(""); setPhoto(null); }, []);
 
-  const closeSheet = useCallback(() => {
-    setPhase("closed");
-    setDetected(null);
-    setMealText("");
-    setPhoto(null);
-  }, []);
-
-  // Read a chosen image file into a data URL for preview + upload.
   const onPickFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -201,13 +250,10 @@ export function FitnessScreen() {
 
   const detect = useCallback(() => {
     if (phase === "detecting") return;
-    if (!photo) { fileRef.current?.click(); return; } // need a photo first
+    if (!photo) { fileRef.current?.click(); return; }
     setPhase("detecting");
     const floor = new Promise<void>((r) => setTimeout(r, 1200));
-    Promise.all([analyseMeal({ image: photo }), floor]).then(([d]) => {
-      setDetected(d);
-      setPhase("results");
-    });
+    Promise.all([analyseMeal({ image: photo }), floor]).then(([d]) => { setDetected(d); setPhase("results"); });
   }, [phase, photo]);
 
   const parseText = useCallback(() => {
@@ -215,21 +261,16 @@ export function FitnessScreen() {
     if (!raw || phase === "detecting") return;
     setPhase("detecting");
     const floor = new Promise<void>((r) => setTimeout(r, 1000));
-    Promise.all([analyseMeal({ text: raw }), floor]).then(([d]) => {
-      setDetected(d);
-      setPhase("results");
-    });
+    Promise.all([analyseMeal({ text: raw }), floor]).then(([d]) => { setDetected(d); setPhase("results"); });
   }, [mealText, phase]);
 
-  // ── editable results: patch an item / meal name and recompute totals ────────
   const patchItem = useCallback((i: number, patch: Partial<MealDetection["items"][number]>) => {
     setDetected((d) => {
       if (!d) return d;
       const items = d.items.map((it, idx) => (idx === i ? { ...it, ...patch } : it));
       const num = (x: number | undefined) => Number(x) || 0;
       return {
-        ...d,
-        items,
+        ...d, items,
         total: items.reduce((a, b) => a + num(b.cal), 0),
         p: items.reduce((a, b) => a + num(b.p), 0),
         c: items.reduce((a, b) => a + num(b.c), 0),
@@ -238,35 +279,23 @@ export function FitnessScreen() {
     });
   }, []);
 
-  const setMealName = useCallback((name: string) => {
-    setDetected((d) => (d ? { ...d, name } : d));
-  }, []);
+  const setMealName = useCallback((name: string) => setDetected((d) => (d ? { ...d, name } : d)), []);
 
   const logMeal = useCallback(() => {
     if (!detected) return;
     const row: MealRow = {
-      name: detected.name,
-      time: "Just now",
-      cal: detected.total,
-      p: detected.p,
-      c: detected.c,
-      f: detected.f,
+      name: detected.name, time: "Just now",
+      cal: detected.total, p: detected.p, c: detected.c, f: detected.f,
     };
     setMeals((prev) => [...prev, row]);
-    // Persist (best-effort; ignored if Supabase isn't wired yet).
     fetch("/api/meals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: row.name, cal: row.cal, protein: row.p, carbs: row.c, fat: row.f,
-      }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: row.name, cal: row.cal, protein: row.p, carbs: row.c, fat: row.f }),
     }).catch(() => {});
     setToast(`Logged ${detected.total} kcal · ${detected.name}`);
-    setPhase("closed");
-    setDetected(null);
-    setPhoto(null);
+    setPhase("closed"); setDetected(null); setPhoto(null);
     setTimeout(() => setToast(null), 2800);
-  }, [detected]);
+  }, [detected, setMeals]);
 
   const isOpen = phase !== "closed";
   const isSnap = phase === "snap" || (phase === "detecting" && mode === "photo") || (phase === "results" && mode === "photo");
@@ -276,32 +305,16 @@ export function FitnessScreen() {
 
   const primaryLabel = isDetecting
     ? (mode === "text" ? "Calculating…" : "Detecting…")
-    : isResults
-    ? "Log this meal"
-    : mode === "text"
-    ? "Calculate macros"
-    : photo
-    ? "Detect food"
-    : "Choose a photo";
+    : isResults ? "Log this meal"
+    : mode === "text" ? "Calculate macros"
+    : photo ? "Detect food" : "Choose a photo";
 
-  const primaryAction = isResults
-    ? logMeal
-    : isTextMode
-    ? parseText
-    : detect;
+  const primaryAction = isResults ? logMeal : isTextMode ? parseText : detect;
 
   return (
     <div style={{ minHeight: "100dvh", background: "var(--bg)", position: "relative" }}>
-      {/* hidden file input for meal photos */}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        onChange={onPickFile}
-        style={{ display: "none" }}
-      />
+      <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: "none" }} />
 
-      {/* scrollable content */}
       <div style={{ paddingBottom: "calc(64px + 72px + env(safe-area-inset-bottom))", overflowY: "auto" }}>
 
         {/* header */}
@@ -310,27 +323,73 @@ export function FitnessScreen() {
             Fitness
           </h1>
           <div style={{ fontSize: 13, color: "var(--ink-mute)", fontWeight: 600, marginTop: 2 }}>
-            Monday, Jun 16
+            {dateLabel}
           </div>
         </div>
 
-        {/* steps card */}
+        {/* steps / stats card */}
         <div style={{
           margin: "16px 18px 0",
           background: "var(--card)", border: "1px solid var(--line-2)",
           borderRadius: 20, padding: "18px 16px",
           boxShadow: "var(--card-shadow)",
-          display: "flex", alignItems: "center", gap: 20,
         }}>
-          <StepsRing steps={STEPS} goal={STEP_GOAL} />
-
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
-            <StatCell label="Distance" value={`${DISTANCE_KM} km`} />
-            <div style={{ height: 1, background: "var(--line-2)" }} />
-            <StatCell label="Active burn" value={`${ACTIVE_CAL} kcal`} />
-            <div style={{ height: 1, background: "var(--line-2)" }} />
-            <StatCell label="Resting HR" value={`${RESTING_HR} bpm`} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              background: "var(--card-soft)", borderRadius: 99, padding: "4px 11px",
+              fontSize: 11.5, color: "var(--ink-mute)", fontWeight: 700,
+            }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--ink-dim)" }} />
+              Garmin · not connected
+            </span>
+            <button
+              onClick={() => setEditingStats(v => !v)}
+              style={{
+                border: "none", background: editingStats ? "var(--accent)" : "var(--accent-soft)",
+                color: editingStats ? "var(--on-accent-2)" : "var(--accent-ink)",
+                borderRadius: 99, padding: "5px 13px", cursor: "pointer",
+                fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+              }}
+            >
+              {editingStats ? "Done" : "Enter manually"}
+            </button>
           </div>
+
+          {editingStats ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {([
+                ["Steps", "steps"], ["Step goal", "stepGoal"],
+                ["Distance (km)", "distanceKm"], ["Active (kcal)", "activeCal"],
+                ["Resting HR", "restingHr"], ["Calorie goal", "calGoal"],
+              ] as [string, keyof FitStats][]).map(([label, key]) => (
+                <label key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={{ fontSize: 11, color: "var(--ink-mute)", fontWeight: 700 }}>{label}</span>
+                  <input
+                    type="number"
+                    value={stats[key]}
+                    onChange={(e) => setStat(key, parseFloat(e.target.value))}
+                    style={{
+                      border: "1px solid var(--line-3)", background: "var(--card-hi)",
+                      borderRadius: 10, padding: "9px 11px", outline: "none",
+                      fontFamily: "inherit", fontSize: 15, fontWeight: 700, color: "var(--ink)", width: "100%", boxSizing: "border-box",
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+              <StepsRing steps={stats.steps} goal={stats.stepGoal} />
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
+                <StatCell label="Distance" value={`${stats.distanceKm} km`} />
+                <div style={{ height: 1, background: "var(--line-2)" }} />
+                <StatCell label="Active burn" value={`${stats.activeCal} kcal`} />
+                <div style={{ height: 1, background: "var(--line-2)" }} />
+                <StatCell label="Resting HR" value={stats.restingHr ? `${stats.restingHr} bpm` : "—"} />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* calorie budget card */}
@@ -343,18 +402,17 @@ export function FitnessScreen() {
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>Calories</span>
             <span style={{ fontSize: 13, color: "var(--ink-mute)", fontWeight: 600 }}>
-              {totalEaten} / {CAL_GOAL} kcal
+              {totalEaten} / {stats.calGoal} kcal
             </span>
           </div>
 
-          <MacroBar eaten={totalEaten} goal={CAL_GOAL} p={macroP} c={macroC} f={macroF} />
+          <MacroBar eaten={totalEaten} goal={stats.calGoal} p={macroP} c={macroC} f={macroF} />
 
           <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.04em", color: "var(--accent-ink)", marginTop: 8 }}>
             {remaining}
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-mute)", marginLeft: 5 }}>kcal remaining</span>
           </div>
 
-          {/* macro legend */}
           <div style={{ display: "flex", gap: 0, marginTop: 12 }}>
             {[
               { color: "var(--protein)", label: "Protein", val: macroP },
@@ -372,6 +430,71 @@ export function FitnessScreen() {
           </div>
         </div>
 
+        {/* weight tracker */}
+        <div style={{
+          margin: "12px 18px 0",
+          background: "var(--card)", border: "1px solid var(--line-2)",
+          borderRadius: 20, padding: "16px",
+          boxShadow: "var(--card-shadow)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, letterSpacing: "-0.02em" }}>Weight</h2>
+            {latestWeight && (
+              <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", color: "var(--ink)" }}>
+                  {latestWeight.kg}
+                  <span style={{ fontSize: 12, color: "var(--ink-mute)", fontWeight: 700, marginLeft: 2 }}>kg</span>
+                </span>
+                {weightDelta !== null && weightDelta !== 0 && (
+                  <span style={{
+                    fontSize: 12, fontWeight: 800,
+                    color: weightDelta < 0 ? "var(--cat-personal)" : "var(--cat-work)",
+                  }}>
+                    {weightDelta > 0 ? "+" : ""}{weightDelta}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {sortedWeights.length >= 2 && (
+            <div style={{ marginTop: 12 }}>
+              <WeightChart data={sortedWeights} />
+            </div>
+          )}
+          {sortedWeights.length === 1 && (
+            <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--ink-mute)", fontWeight: 600 }}>
+              Log another day to start the graph.
+            </div>
+          )}
+          {sortedWeights.length === 0 && (
+            <div style={{ marginTop: 8, fontSize: 13, color: "var(--ink-mute)", fontWeight: 600 }}>
+              Log your weight to start tracking.
+            </div>
+          )}
+
+          <div style={{ marginTop: 13, display: "flex", gap: 8 }}>
+            <input
+              type="number"
+              value={weightDraft}
+              onChange={(e) => setWeightDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") logWeight(); }}
+              placeholder="Today's weight (kg)"
+              style={{
+                flex: 1, minWidth: 0, border: "1px solid var(--line-3)", background: "var(--card-hi)",
+                borderRadius: 12, padding: "11px 14px", outline: "none",
+                fontFamily: "inherit", fontSize: 15, fontWeight: 600, color: "var(--ink)",
+              }}
+            />
+            <button onClick={logWeight} style={{
+              border: "none", borderRadius: 12, background: "var(--accent)", color: "#fff",
+              fontFamily: "inherit", fontSize: 14, fontWeight: 700, padding: "0 18px", cursor: "pointer",
+            }}>
+              Log
+            </button>
+          </div>
+        </div>
+
         {/* today's meals */}
         <div style={{ margin: "20px 18px 0", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em" }}>Today&apos;s meals</h2>
@@ -379,7 +502,18 @@ export function FitnessScreen() {
         </div>
 
         <div style={{ margin: "11px 18px 0", display: "flex", flexDirection: "column", gap: 9 }}>
-          {meals.map((m, i) => <MealListRow key={i} meal={m} />)}
+          {meals.length === 0 ? (
+            <div style={{
+              padding: "20px 4px", textAlign: "center",
+              fontSize: 13.5, color: "var(--ink-mute)", fontWeight: 600,
+            }}>
+              No meals yet — snap or describe one below.
+            </div>
+          ) : (
+            meals.map((m, i) => (
+              <MealListRow key={i} meal={m} onDelete={() => setMeals(prev => prev.filter((_, j) => j !== i))} />
+            ))
+          )}
         </div>
 
         {/* AI nutrition strip */}
@@ -475,14 +609,11 @@ export function FitnessScreen() {
 
       {/* scrim */}
       {isOpen && (
-        <div
-          onClick={closeSheet}
-          style={{
-            position: "fixed", inset: 0, zIndex: 70,
-            background: "rgba(45,42,36,0.42)",
-            animation: "fadeIn .25s ease-out",
-          }}
-        />
+        <div onClick={closeSheet} style={{
+          position: "fixed", inset: 0, zIndex: 70,
+          background: "rgba(45,42,36,0.42)",
+          animation: "fadeIn .25s ease-out",
+        }} />
       )}
 
       {/* bottom sheet */}
@@ -495,7 +626,6 @@ export function FitnessScreen() {
           animation: "sheetUp .35s cubic-bezier(.2,.8,.2,1)",
           maxHeight: "92dvh", overflowY: "auto",
         }}>
-          {/* handle */}
           <div style={{ width: 40, height: 5, borderRadius: 99, background: "var(--check-border)", margin: "0 auto 16px" }} />
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -519,7 +649,6 @@ export function FitnessScreen() {
                 border: "1px solid var(--line-2)", background: "var(--card-soft)",
               }}
             >
-              {/* chosen photo or placeholder */}
               {photo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={photo} alt="Meal" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
@@ -536,7 +665,6 @@ export function FitnessScreen() {
                   <span style={{ fontSize: 13, color: "var(--ink-mute)", fontWeight: 600 }}>Tap to add your meal photo</span>
                 </div>
               )}
-              {/* corner framing */}
               {[
                 { top: 12, left: 12, borderTop: "3px solid var(--on-accent-2)", borderLeft: "3px solid var(--on-accent-2)", borderRadius: "4px 0 0 0" },
                 { top: 12, right: 12, borderTop: "3px solid var(--on-accent-2)", borderRight: "3px solid var(--on-accent-2)", borderRadius: "0 4px 0 0" },
@@ -545,23 +673,17 @@ export function FitnessScreen() {
               ].map((s, i) => (
                 <span key={i} style={{ position: "absolute", width: 22, height: 22, ...s }} />
               ))}
-              {/* detecting overlay */}
               {isDetecting && (
-                <div style={{
-                  position: "absolute", inset: 0,
-                  background: "rgba(23,166,179,0.10)", pointerEvents: "none",
-                }}>
+                <div style={{ position: "absolute", inset: 0, background: "rgba(23,166,179,0.10)", pointerEvents: "none" }}>
                   <div style={{
                     position: "absolute", left: 0, right: 0, height: 2,
-                    background: "var(--accent)",
-                    boxShadow: "0 0 14px 2px var(--accent)",
+                    background: "var(--accent)", boxShadow: "0 0 14px 2px var(--accent)",
                     animation: "scanline 1.3s ease-in-out infinite alternate",
                   }} />
                   <div style={{
                     position: "absolute", left: 0, right: 0, bottom: 0,
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    gap: 8, padding: 12,
-                    background: "rgba(45,42,36,0.55)",
+                    gap: 8, padding: 12, background: "rgba(45,42,36,0.55)",
                   }}>
                     <PulseDots color="#fff" />
                     <span style={{ fontSize: 13, color: "#fff", fontWeight: 700 }}>Detecting food…</span>
@@ -589,17 +711,13 @@ export function FitnessScreen() {
               />
               <div className="mscroll" style={{ display: "flex", gap: 7, overflowX: "auto", padding: "10px 0 2px" }}>
                 {EXAMPLE_CHIPS.map((chip) => (
-                  <button
-                    key={chip}
-                    onClick={() => setMealText(chip)}
-                    style={{
-                      flexShrink: 0,
-                      border: "1px dashed var(--check-border)", background: "var(--card)",
-                      borderRadius: 99, padding: "7px 13px",
-                      fontFamily: "inherit", fontSize: 12.5, fontWeight: 600,
-                      color: "var(--ink-soft)", cursor: "pointer", whiteSpace: "nowrap",
-                    }}
-                  >
+                  <button key={chip} onClick={() => setMealText(chip)} style={{
+                    flexShrink: 0,
+                    border: "1px dashed var(--check-border)", background: "var(--card)",
+                    borderRadius: 99, padding: "7px 13px",
+                    fontFamily: "inherit", fontSize: 12.5, fontWeight: 600,
+                    color: "var(--ink-soft)", cursor: "pointer", whiteSpace: "nowrap",
+                  }}>
                     {chip}
                   </button>
                 ))}
@@ -613,7 +731,7 @@ export function FitnessScreen() {
             </div>
           )}
 
-          {/* results — every value is editable */}
+          {/* results — every value editable */}
           {isResults && detected && (
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16, gap: 10 }}>
@@ -644,43 +762,23 @@ export function FitnessScreen() {
                     borderRadius: 12,
                     animation: `popItem .35s ease-out ${i * 0.08}s both`,
                   }}>
-                    <span style={{
-                      width: 8, height: 8, borderRadius: "50%",
-                      background: "var(--accent-soft-2)", border: "2px solid var(--accent)", flexShrink: 0,
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent-soft-2)", border: "2px solid var(--accent)", flexShrink: 0 }} />
+                    <input value={it.name} onChange={(e) => patchItem(i, { name: e.target.value })} aria-label="Food name" style={{
+                      flex: 1, minWidth: 0, border: "none", background: "transparent", outline: "none",
+                      fontFamily: "inherit", fontSize: 14, fontWeight: 600, color: "var(--ink)",
                     }} />
-                    <input
-                      value={it.name}
-                      onChange={(e) => patchItem(i, { name: e.target.value })}
-                      aria-label="Food name"
-                      style={{
-                        flex: 1, minWidth: 0,
-                        border: "none", background: "transparent", outline: "none",
-                        fontFamily: "inherit", fontSize: 14, fontWeight: 600, color: "var(--ink)",
-                      }}
-                    />
-                    <input
-                      value={it.portion}
-                      onChange={(e) => patchItem(i, { portion: e.target.value })}
-                      aria-label="Portion"
-                      style={{
-                        width: 64, flexShrink: 0, textAlign: "right",
-                        border: "none", borderBottom: "1px dashed var(--check-border)",
-                        background: "transparent", outline: "none",
-                        fontFamily: "inherit", fontSize: 12.5, color: "var(--ink-mute)", fontWeight: 700,
-                      }}
-                    />
-                    <input
-                      type="number"
-                      value={it.cal}
-                      onChange={(e) => patchItem(i, { cal: Math.max(0, Number(e.target.value) || 0) })}
-                      aria-label="Calories"
-                      style={{
-                        width: 56, flexShrink: 0, textAlign: "right",
-                        border: "none", borderBottom: "1px dashed var(--check-border)",
-                        background: "transparent", outline: "none",
-                        fontFamily: "inherit", fontSize: 14, fontWeight: 800, color: "var(--ink)",
-                      }}
-                    />
+                    <input value={it.portion} onChange={(e) => patchItem(i, { portion: e.target.value })} aria-label="Portion" style={{
+                      width: 64, flexShrink: 0, textAlign: "right",
+                      border: "none", borderBottom: "1px dashed var(--check-border)",
+                      background: "transparent", outline: "none",
+                      fontFamily: "inherit", fontSize: 12.5, color: "var(--ink-mute)", fontWeight: 700,
+                    }} />
+                    <input type="number" value={it.cal} onChange={(e) => patchItem(i, { cal: Math.max(0, Number(e.target.value) || 0) })} aria-label="Calories" style={{
+                      width: 56, flexShrink: 0, textAlign: "right",
+                      border: "none", borderBottom: "1px dashed var(--check-border)",
+                      background: "transparent", outline: "none",
+                      fontFamily: "inherit", fontSize: 14, fontWeight: 800, color: "var(--ink)",
+                    }} />
                     <span style={{ fontSize: 11, color: "var(--ink-dim)", fontWeight: 700, flexShrink: 0 }}>kcal</span>
                   </div>
                 ))}
@@ -701,18 +799,14 @@ export function FitnessScreen() {
           )}
 
           {/* primary action */}
-          <button
-            onClick={primaryAction}
-            disabled={isDetecting}
-            style={{
-              marginTop: 18, width: "100%", border: "none", borderRadius: 15,
-              background: isDetecting ? "var(--accent-soft-2)" : "var(--accent)",
-              color: isDetecting ? "var(--accent-ink)" : "#fff",
-              fontFamily: "inherit", fontSize: 15.5, fontWeight: 800,
-              padding: 15, cursor: isDetecting ? "default" : "pointer",
-              letterSpacing: "-0.01em",
-            }}
-          >
+          <button onClick={primaryAction} disabled={isDetecting} style={{
+            marginTop: 18, width: "100%", border: "none", borderRadius: 15,
+            background: isDetecting ? "var(--accent-soft-2)" : "var(--accent)",
+            color: isDetecting ? "var(--accent-ink)" : "#fff",
+            fontFamily: "inherit", fontSize: 15.5, fontWeight: 800,
+            padding: 15, cursor: isDetecting ? "default" : "pointer",
+            letterSpacing: "-0.01em",
+          }}>
             {primaryLabel}
           </button>
 

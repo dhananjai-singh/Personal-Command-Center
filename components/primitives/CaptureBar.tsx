@@ -2,6 +2,22 @@
 
 import { useState, useRef, useEffect } from "react";
 
+// Minimal shape of the Web Speech API recognition object we use.
+interface SpeechRec {
+  lang: string;
+  interimResults: boolean;
+  onresult: (e: { results: { [i: number]: { [i: number]: { transcript: string } } } }) => void;
+  onstart: () => void;
+  onend: () => void;
+  onerror: () => void;
+  start: () => void;
+  stop: () => void;
+}
+type SpeechWindow = Window & {
+  SpeechRecognition?: new () => SpeechRec;
+  webkitSpeechRecognition?: new () => SpeechRec;
+};
+
 interface CaptureBarProps {
   /** "desktop" = 16px radius, 44px mic button, helper text
    *  "mobile"  = 22px radius, 54px mic button, dominant */
@@ -39,7 +55,9 @@ const ArrowIcon = () => (
 
 export function CaptureBar({ variant = "desktop", onSubmit, parsing = false }: CaptureBarProps) {
   const [text, setText] = useState("");
+  const [listening, setListening] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recRef = useRef<SpeechRec | null>(null);
   const isMobile = variant === "mobile";
 
   const btnSize = isMobile ? 54 : 44;
@@ -58,33 +76,27 @@ export function CaptureBar({ variant = "desktop", onSubmit, parsing = false }: C
     if (e.key === "Enter") handleSubmit();
   };
 
-  // Mic via browser speech-to-text (Web Speech API)
+  // Mic via browser speech-to-text (Web Speech API). A second tap stops it.
   const handleMic = () => {
-    type AnyWindow = Window & {
-      SpeechRecognition?: new () => {
-        lang: string;
-        interimResults: boolean;
-        onresult: (e: { results: { [i: number]: { [i: number]: { transcript: string } } } }) => void;
-        start: () => void;
-      };
-      webkitSpeechRecognition?: new () => {
-        lang: string;
-        interimResults: boolean;
-        onresult: (e: { results: { [i: number]: { [i: number]: { transcript: string } } } }) => void;
-        start: () => void;
-      };
-    };
-    const w = window as AnyWindow;
+    if (listening) {
+      recRef.current?.stop();
+      return;
+    }
+    const w = window as SpeechWindow;
     const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SR) return;
     const rec = new SR();
+    recRef.current = rec;
     rec.lang = "en-US";
     rec.interimResults = false;
+    rec.onstart = () => setListening(true);
     rec.onresult = (e) => {
       const transcript = e.results[0][0].transcript;
       setText(transcript);
       inputRef.current?.focus();
     };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
     rec.start();
   };
 
@@ -124,7 +136,9 @@ export function CaptureBar({ variant = "desktop", onSubmit, parsing = false }: C
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKey}
           placeholder={
-            isMobile
+            listening
+              ? "Listening…"
+              : isMobile
               ? "Add a task, deadline or event…"
               : 'Add anything — "submit assignment by 10pm tomorrow"'
           }
@@ -165,16 +179,18 @@ export function CaptureBar({ variant = "desktop", onSubmit, parsing = false }: C
             height: btnSize,
             border: "none",
             borderRadius: btnRadius,
-            background: "var(--accent)",
+            background: listening ? "var(--accent-ink)" : "var(--accent)",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             position: "relative",
             flexShrink: 0,
-            boxShadow: "0 4px 14px rgba(23,166,179,0.35)",
+            boxShadow: listening ? undefined : "0 4px 14px rgba(23,166,179,0.35)",
+            animation: listening ? "micGlow 1.25s ease-in-out infinite" : undefined,
+            transition: "background 0.2s",
           }}
-          aria-label={hasText ? "Send" : "Voice input"}
+          aria-label={listening ? "Stop listening" : hasText ? "Send" : "Voice input"}
         >
           {/* Mic — shown when no text */}
           <span

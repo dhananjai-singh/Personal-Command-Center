@@ -379,6 +379,19 @@ body {
   50%       { opacity: 1;    transform: scale(1); }
 }
 
+/* Pulsing glow ring on the mic button while it's actively listening. */
+@keyframes micGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(23, 166, 179, 0.5), 0 4px 14px rgba(23, 166, 179, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(23, 166, 179, 0), 0 4px 14px rgba(23, 166, 179, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(23, 166, 179, 0), 0 4px 14px rgba(23, 166, 179, 0.35);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

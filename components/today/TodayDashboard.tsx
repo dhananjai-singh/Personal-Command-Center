@@ -18,6 +18,7 @@ interface TaskItem {
   type: ItemType;
   category: Category;
   due: string;
+  due_datetime?: string | null;
   done: boolean;
 }
 interface HabitItem {
@@ -68,6 +69,22 @@ function weekStrip(now: Date) {
   });
 }
 
+// Show the resolved date the AI computed (e.g. "Wed, Jun 24 · 2:00 PM"),
+// not the vague relative word. Falls back to the model's label, then "—".
+function formatDue(iso: string | null | undefined, fallback: string | null): string {
+  if (iso) {
+    const d = new Date(iso);
+    if (!isNaN(d.getTime())) {
+      const date = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      const midnight = d.getHours() === 0 && d.getMinutes() === 0;
+      if (midnight) return date;
+      const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      return `${date} · ${time}`;
+    }
+  }
+  return fallback ?? "—";
+}
+
 // ─── Empty-state helper ───────────────────────────────────────────────────────
 function EmptyNote({ children }: { children: React.ReactNode }) {
   return (
@@ -110,7 +127,7 @@ export function TodayDashboard() {
     Promise.all([parseCapture(text), minDelay]).then(([p]) => {
       const newTask: TaskItem = {
         id: uid(), title: p.title, type: p.type, category: p.category,
-        due: p.due ?? "—", done: false,
+        due: p.due ?? "—", due_datetime: p.due_datetime ?? null, done: false,
       };
       setTasks(prev => [newTask, ...prev]);
       setCaptureParsing(false);
@@ -318,41 +335,72 @@ export function TodayDashboard() {
               <div
                 key={t.id}
                 style={{
-                  display: "flex", alignItems: "center", gap: 14,
+                  display: "flex", alignItems: mobile ? "flex-start" : "center", gap: mobile ? 12 : 14,
                   padding: mobile ? "13px 0" : "14px 6px",
                   borderTop: i === 0 ? "none" : "1px solid var(--task-line)",
                 }}
               >
                 <Checkbox checked={t.done} onChange={() => toggleTask(t.id)} shape="round" size={22} />
-                <span style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 14 }}>
-                  <TypeShape type={t.type} />
-                </span>
-                <div
-                  onClick={() => toggleTask(t.id)}
-                  style={{
-                    flex: 1, minWidth: 0, cursor: "pointer",
-                    fontSize: 15, fontWeight: 600, lineHeight: 1.3, overflowWrap: "anywhere",
-                    color: t.done ? "var(--ink-mute)" : "var(--ink)",
-                    textDecoration: t.done ? "line-through" : "none",
-                  }}
-                >
-                  {t.title}
-                </div>
-                <span style={{
-                  fontSize: 12, fontWeight: 700, borderRadius: 99, padding: "4px 11px", flexShrink: 0,
-                  background: CAT_BG[t.category], color: CAT_C[t.category],
-                }}>
-                  {t.category}
-                </span>
-                <span style={{ fontSize: 13, color: "var(--ink-faint)", fontWeight: 600, textAlign: "right", flexShrink: 0, whiteSpace: "nowrap" }}>
-                  {t.due}
-                </span>
+
+                {mobile ? (
+                  // Mobile: title gets its own full-width line; meta stacks below.
+                  <div onClick={() => toggleTask(t.id)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
+                    <div style={{
+                      fontSize: 15, fontWeight: 600, lineHeight: 1.3, overflowWrap: "break-word",
+                      color: t.done ? "var(--ink-mute)" : "var(--ink)",
+                      textDecoration: t.done ? "line-through" : "none",
+                    }}>
+                      {t.title}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                      <span style={{ display: "flex", alignItems: "center", width: 14, flexShrink: 0 }}>
+                        <TypeShape type={t.type} />
+                      </span>
+                      <span style={{
+                        fontSize: 12, fontWeight: 700, borderRadius: 99, padding: "3px 10px",
+                        background: CAT_BG[t.category], color: CAT_C[t.category],
+                      }}>
+                        {t.category}
+                      </span>
+                      <span style={{ fontSize: 12.5, color: "var(--ink-faint)", fontWeight: 600 }}>{formatDue(t.due_datetime, t.due)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  // Desktop: single row.
+                  <>
+                    <span style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 14 }}>
+                      <TypeShape type={t.type} />
+                    </span>
+                    <div
+                      onClick={() => toggleTask(t.id)}
+                      style={{
+                        flex: 1, minWidth: 0, cursor: "pointer",
+                        fontSize: 15, fontWeight: 600, lineHeight: 1.3, overflowWrap: "break-word",
+                        color: t.done ? "var(--ink-mute)" : "var(--ink)",
+                        textDecoration: t.done ? "line-through" : "none",
+                      }}
+                    >
+                      {t.title}
+                    </div>
+                    <span style={{
+                      fontSize: 12, fontWeight: 700, borderRadius: 99, padding: "4px 11px", flexShrink: 0,
+                      background: CAT_BG[t.category], color: CAT_C[t.category],
+                    }}>
+                      {t.category}
+                    </span>
+                    <span style={{ fontSize: 13, color: "var(--ink-faint)", fontWeight: 600, textAlign: "right", flexShrink: 0, whiteSpace: "nowrap" }}>
+                      {formatDue(t.due_datetime, t.due)}
+                    </span>
+                  </>
+                )}
+
                 <button
                   onClick={() => removeTask(t.id)}
                   aria-label="Delete task"
                   style={{
                     border: "none", background: "transparent", cursor: "pointer",
                     color: "var(--ink-dim)", fontSize: 16, lineHeight: 1, padding: 4, flexShrink: 0,
+                    marginTop: mobile ? 2 : 0,
                   }}
                 >
                   ×

@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { ANSWERS, SUGGESTION_DEFS, askAi } from "@/lib/services/ask-ai";
-import type { AiKey, AiCard, AiAnswer } from "@/lib/services/ask-ai";
+import { SUGGESTION_DEFS, askAi } from "@/lib/services/ask-ai";
+import type { AiCard, AiAnswer } from "@/lib/services/ask-ai";
 import { ThemeSwitcher } from "@/components/nav/ThemeSwitcher";
 
 // ── types ─────────────────────────────────────────────────────────────────────
 interface UserMessage { id: number; role: "user"; text: string }
-interface AiMessage   { id: number; role: "ai";   key: AiKey; answer?: AiAnswer }
+interface AiMessage   { id: number; role: "ai";   answer: AiAnswer }
 type Message = UserMessage | AiMessage;
 
 const CAT_COLORS = {
@@ -119,7 +119,7 @@ function ThreadMessages({ messages, typing, variant }: { messages: Message[]; ty
             </div>
           );
         }
-        const a = m.answer ?? ANSWERS[m.key];
+        const a = m.answer;
         const av = sm ? 27 : 30;
         const dot = sm ? 9 : 10;
         return (
@@ -129,14 +129,18 @@ function ThreadMessages({ messages, typing, variant }: { messages: Message[]; ty
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: sm ? 14.5 : 15, lineHeight: sm ? 1.5 : 1.55, color: "var(--ink-2)", fontWeight: 500 }}>{a.intro}</div>
-              <div style={{ marginTop: sm ? 11 : 14, display: "flex", flexDirection: "column", gap: sm ? 8 : 10 }}>
-                {a.cards.map((c, i) =>
-                  sm ? <ResultCardMobile key={i} card={c} /> : <ResultCardDesktop key={i} card={c} />
-                )}
-              </div>
-              <div style={{ marginTop: sm ? 11 : 14, fontSize: sm ? 13.5 : 14, lineHeight: 1.55, color: "var(--ink-soft)", fontWeight: 500 }}>
-                {a.outro}
-              </div>
+              {a.cards.length > 0 && (
+                <div style={{ marginTop: sm ? 11 : 14, display: "flex", flexDirection: "column", gap: sm ? 8 : 10 }}>
+                  {a.cards.map((c, i) =>
+                    sm ? <ResultCardMobile key={i} card={c} /> : <ResultCardDesktop key={i} card={c} />
+                  )}
+                </div>
+              )}
+              {a.outro && (
+                <div style={{ marginTop: sm ? 11 : 14, fontSize: sm ? 13.5 : 14, lineHeight: 1.55, color: "var(--ink-soft)", fontWeight: 500 }}>
+                  {a.outro}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -149,8 +153,7 @@ function ThreadMessages({ messages, typing, variant }: { messages: Message[]; ty
 // ── Shared hook ───────────────────────────────────────────────────────────────
 function useAskAi() {
   const [messages, setMessages] = useState<Message[]>([
-    { id: 1, role: "user", text: "What's slipping this week?" },
-    { id: 2, role: "ai", key: "slipping" },
+    { id: 1, role: "ai", answer: { intro: "Hi! Ask me anything about your tasks, routines, meals, or weight.", cards: [], outro: "" } },
   ]);
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
@@ -174,9 +177,9 @@ function useAskAi() {
     // answer in real data when available and otherwise routes to a canned one.
     // min 1100ms keeps the typing indicator from flashing on instant fallback.
     const minDelay = new Promise<void>((r) => setTimeout(r, 1100));
-    Promise.all([askAi(text), minDelay]).then(([{ key, answer }]) => {
+    Promise.all([askAi(text), minDelay]).then(([answer]) => {
       const aid = nextIdRef.current++;
-      setMessages((prev) => [...prev, { id: aid, role: "ai", key, answer }]);
+      setMessages((prev) => [...prev, { id: aid, role: "ai", answer }]);
       setTyping(false);
     });
   }, [typing]);

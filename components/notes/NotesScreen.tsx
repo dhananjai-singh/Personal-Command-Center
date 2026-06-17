@@ -2,11 +2,14 @@
 
 import { useState, useCallback, useRef } from "react";
 import { searchNotes } from "@/lib/services/notes-search";
+import { useSyncedStore } from "@/lib/hooks/useSyncedStore";
 import type { Category } from "@/lib/domain/types";
+
+const uid = () => Math.random().toString(36).slice(2, 9);
 
 // ── types ─────────────────────────────────────────────────────────────────────
 interface NoteItem {
-  id: number;
+  id: string;
   title: string;
   body: string;
   tag: Category;
@@ -16,17 +19,6 @@ interface NoteItem {
 }
 
 type FilterValue = "All" | Category;
-
-// ── seed notes ────────────────────────────────────────────────────────────────
-const SEED_NOTES: NoteItem[] = [
-  { id: 1, title: "Lecture 9 — TCP handshake", body: "SYN, SYN-ACK, ACK. Revisit congestion-control window scaling before the unit test.", tag: "Studies", time: "1:42 PM", pinned: true },
-  { id: 2, title: "Lumen call", body: "They want the dashboard by month-end. Send the revised invoice and ask about API access.", tag: "Work", time: "11:05 AM", pinned: true },
-  { id: 3, title: "", body: "Weekly review ritual — every Sunday 6pm: clear inbox, plan the top 3 for the week.", tag: "Personal", time: "9:10 AM", pinned: false },
-  { id: 4, title: "Books to read", body: "Designing Data-Intensive Apps · The Pragmatic Programmer · Range", tag: "Personal", time: "Yesterday", pinned: false },
-  { id: 5, title: "DBMS revision", body: "Normalization 1NF → BCNF. Functional dependencies. Practice the join problems again.", tag: "Studies", time: "Yesterday", pinned: false },
-  { id: 6, title: "", body: "Gift ideas for mom's birthday — a good kettle? new plants for the balcony?", tag: "Personal", time: "Mon", pinned: false },
-  { id: 7, title: "PR review checklist", body: "Tests pass · no console logs · naming · error states · a11y labels.", tag: "Work", time: "Mon", pinned: false },
-];
 
 const CAT_COLORS: Record<Category, { c: string; bg: string }> = {
   Studies:  { c: "var(--cat-studies)",  bg: "var(--cat-studies-bg)" },
@@ -101,23 +93,22 @@ function NoteCard({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export function NotesScreen() {
-  const [notes, setNotes] = useState<NoteItem[]>(SEED_NOTES);
+  const [notes, setNotes] = useSyncedStore<NoteItem[]>("pcc-notes", []);
   const [filter, setFilter] = useState<FilterValue>("All");
   const [aiQuery, setAiQuery] = useState("");
-  const [aiResult, setAiResult] = useState<{ answer: string; matchIds: number[] } | null>(null);
+  const [aiResult, setAiResult] = useState<{ answer: string; matchIds: string[] } | null>(null);
   const [sheet, setSheet] = useState<"new" | "edit" | null>(null);
-  const [editId, setEditId] = useState<number | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftBody, setDraftBody] = useState("");
   const [draftTag, setDraftTag] = useState<Category>("Personal");
   const [draftPinned, setDraftPinned] = useState(false);
   const [toast, setToast] = useState(false);
-  const [nextId, setNextId] = useState(100);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const runAi = useCallback((q: string) => {
     const result = searchNotes(q, notes.map((n) => ({
-      id: String(n.id), title: n.title || null, body: n.body, tag: n.tag,
+      id: n.id, title: n.title || null, body: n.body, tag: n.tag,
     })));
     if (!result.matchIds.length && !q.trim()) {
       setAiResult(null);
@@ -125,7 +116,7 @@ export function NotesScreen() {
     }
     setAiResult({
       answer: result.answer,
-      matchIds: result.matchIds.map(Number),
+      matchIds: result.matchIds,
     });
   }, [notes]);
 
@@ -157,21 +148,20 @@ export function NotesScreen() {
       return;
     }
 
-    const id = nextId;
+    const id = uid();
     const note: NoteItem = { id, title: t, body: b || t, tag: draftTag, time: "Just now", pinned: draftPinned, fresh: true };
     setNotes((prev) => [note, ...prev]);
-    setNextId((i) => i + 1);
     setSheet(null);
     setToast(true);
     setTimeout(() => setToast(false), 2400);
     setTimeout(() => setNotes((prev) => prev.map((n) => n.id === id ? { ...n, fresh: false } : n)), 1800);
-  }, [draftTitle, draftBody, draftTag, draftPinned, sheet, editId, nextId, closeSheet]);
+  }, [draftTitle, draftBody, draftTag, draftPinned, sheet, editId, setNotes, closeSheet]);
 
   const deleteNote = useCallback(() => {
     if (editId === null) return;
     setNotes((prev) => prev.filter((n) => n.id !== editId));
     setSheet(null);
-  }, [editId]);
+  }, [editId, setNotes]);
 
   const aiActive = !!aiResult;
 
@@ -301,16 +291,22 @@ export function NotesScreen() {
         </div>
 
         {/* masonry grid */}
-        <div style={{ margin: "12px 18px 0", columnCount: 2, columnGap: 10 }}>
-          {ordered.map((n) => (
-            <NoteCard
-              key={n.id}
-              note={n}
-              highlighted={aiActive && !!aiResult?.matchIds.includes(n.id)}
-              onTap={() => openEdit(n)}
-            />
-          ))}
-        </div>
+        {ordered.length === 0 ? (
+          <div style={{ margin: "44px 18px", textAlign: "center", color: "var(--ink-mute)", fontWeight: 600, fontSize: 14 }}>
+            {aiActive ? "No matching notes." : "No notes yet — tap “New note” to add one."}
+          </div>
+        ) : (
+          <div style={{ margin: "12px 18px 0", columnCount: 2, columnGap: 10 }}>
+            {ordered.map((n) => (
+              <NoteCard
+                key={n.id}
+                note={n}
+                highlighted={aiActive && !!aiResult?.matchIds.includes(n.id)}
+                onTap={() => openEdit(n)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* floating new-note button */}

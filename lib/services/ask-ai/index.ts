@@ -1,21 +1,16 @@
-/** Swap for a real LLM + retrieval pipeline. */
-export { ANSWERS, SUGGESTION_DEFS, pickKey } from "./mock";
+/** Suggestion chips + types still come from here; answers come from the LLM. */
+export { SUGGESTION_DEFS } from "./mock";
 export type { AiKey, AiAnswer, AiCard } from "./mock";
 
-import { ANSWERS, pickKey, type AiKey, type AiAnswer } from "./mock";
-
-export interface AskResult {
-  key: AiKey;
-  answer: AiAnswer;
-}
+import type { AiAnswer } from "./mock";
 
 /**
- * Ask a free-text question. Hits the LLM-backed /api/ask route, which grounds
- * the answer in the user's real Supabase data when available and otherwise
- * routes to a canned answer. Falls back to the local keyword router + canned
- * answer on any network failure, so the chat never stalls.
+ * Ask a free-text question. Hits /api/ask, which grounds the answer in the
+ * user's real synced data (tasks/habits/meals/weights) via the LLM. There is no
+ * canned/sample fallback — on any failure we return a short apology with no
+ * cards, never fabricated items.
  */
-export async function askAi(question: string): Promise<AskResult> {
+export async function askAi(question: string): Promise<AiAnswer> {
   try {
     const res = await fetch("/api/ask", {
       method: "POST",
@@ -24,16 +19,10 @@ export async function askAi(question: string): Promise<AskResult> {
     });
     if (res.ok) {
       const data = await res.json();
-      if (data?.key) {
-        return {
-          key: data.key as AiKey,
-          answer: (data.answer as AiAnswer) ?? ANSWERS[data.key as AiKey],
-        };
-      }
+      if (data?.answer) return data.answer as AiAnswer;
     }
   } catch {
-    /* fall through to local router */
+    /* fall through */
   }
-  const key = pickKey(question);
-  return { key, answer: ANSWERS[key] };
+  return { intro: "I couldn't reach the assistant just now — try again in a moment.", cards: [], outro: "" };
 }

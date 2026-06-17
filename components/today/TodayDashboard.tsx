@@ -276,8 +276,8 @@ export function TodayDashboard() {
                 </span>
                 <div style={{
                   flex: 1, minWidth: 0,
-                  fontSize: 15, fontWeight: 600,
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  fontSize: 15, fontWeight: 600, lineHeight: 1.3,
+                  overflowWrap: "anywhere",
                   color: t.done ? "var(--ink-mute)" : "var(--ink)",
                   textDecoration: t.done ? "line-through" : "none",
                 }}>

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { chat, parseJSON, isLLMConfigured } from "@/lib/openai/client";
 import { parse as mockParse } from "@/lib/services/capture/mock";
-import { saveTask } from "@/lib/data/server";
 import type { ParsedItem } from "@/lib/domain/types";
 
 export const runtime = "nodejs";
@@ -53,10 +52,6 @@ export async function POST(req: Request) {
   const fallback = mockParse(raw);
 
   let item: ParsedItem = fallback;
-  let extra: { recurrence: string | null; project_id: string | null } = {
-    recurrence: null,
-    project_id: null,
-  };
   let source = "mock";
 
   if (isLLMConfigured()) {
@@ -78,10 +73,6 @@ export async function POST(req: Request) {
           due: parsed.due ?? null,
           due_datetime: parsed.due_datetime ?? null,
         };
-        extra = {
-          recurrence: parsed.recurrence ?? null,
-          project_id: parsed.project_id ?? null,
-        };
         source = "llm";
       }
     } catch {
@@ -89,8 +80,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // Persist (best-effort; null id just means Supabase isn't wired yet).
-  const id = await saveTask({ ...item, ...extra });
-
-  return NextResponse.json({ item, id, source });
+  // The client adds the parsed item to its synced task list (which persists
+  // to Supabase via /api/state), so no write is needed here.
+  return NextResponse.json({ item, source });
 }

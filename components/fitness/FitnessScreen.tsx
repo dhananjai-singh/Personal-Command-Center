@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { analyseText } from "@/lib/services/nutrition";
-import { useLocalStore } from "@/lib/hooks/useLocalStore";
+import { useSyncedStore } from "@/lib/hooks/useSyncedStore";
 import type { MealDetection } from "@/lib/domain/types";
 
 // ── stored shapes ─────────────────────────────────────────────────────────────
@@ -188,9 +188,9 @@ type Phase = "closed" | "snap" | "text" | "detecting" | "results";
 // ── Main component ────────────────────────────────────────────────────────────
 export function FitnessScreen() {
   const router = useRouter();
-  const [meals, setMeals] = useLocalStore<MealRow[]>("pcc-meals", []);
-  const [stats, setStats] = useLocalStore<FitStats>("pcc-fitstats", DEFAULT_STATS);
-  const [weights, setWeights] = useLocalStore<WeightEntry[]>("pcc-weights", []);
+  const [meals, setMeals] = useSyncedStore<MealRow[]>("pcc-meals", []);
+  const [stats, setStats] = useSyncedStore<FitStats>("pcc-fitstats", DEFAULT_STATS);
+  const [weights, setWeights] = useSyncedStore<WeightEntry[]>("pcc-weights", []);
   const [editingStats, setEditingStats] = useState(false);
   const [weightDraft, setWeightDraft] = useState("");
 
@@ -287,11 +287,7 @@ export function FitnessScreen() {
       name: detected.name, time: "Just now",
       cal: detected.total, p: detected.p, c: detected.c, f: detected.f,
     };
-    setMeals((prev) => [...prev, row]);
-    fetch("/api/meals", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: row.name, cal: row.cal, protein: row.p, carbs: row.c, fat: row.f }),
-    }).catch(() => {});
+    setMeals((prev) => [...prev, row]); // persists via useSyncedStore
     setToast(`Logged ${detected.total} kcal · ${detected.name}`);
     setPhase("closed"); setDetected(null); setPhoto(null);
     setTimeout(() => setToast(null), 2800);

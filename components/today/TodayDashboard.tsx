@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { ThemeSwitcher } from "@/components/nav/ThemeSwitcher";
 import { CaptureBar, Checkbox, TypeShape, StreakChain } from "@/components/primitives";
-import { useLocalStore } from "@/lib/hooks/useLocalStore";
+import { useSyncedStore } from "@/lib/hooks/useSyncedStore";
 import { parseCapture } from "@/lib/services/capture";
 import type { Category, ItemType } from "@/lib/domain/types";
 
@@ -82,8 +82,8 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function TodayDashboard() {
-  const [tasks, setTasks]   = useLocalStore<TaskItem[]>("pcc-tasks", []);
-  const [habits, setHabits] = useLocalStore<HabitItem[]>("pcc-habits", []);
+  const [tasks, setTasks]   = useSyncedStore<TaskItem[]>("pcc-tasks", []);
+  const [habits, setHabits] = useSyncedStore<HabitItem[]>("pcc-habits", []);
   const [activeCat, setActiveCat] = useState<ActiveCat>("all");
   const [captureParsing, setCaptureParsing] = useState(false);
   const [captureToast, setCaptureToast] = useState<string | null>(null);

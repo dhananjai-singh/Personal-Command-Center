@@ -62,11 +62,17 @@ export function BottomNav() {
         right: 0,
         bottom: 0,
         zIndex: 46,
+        // Total height = 64px + safe area. Every composer/dock is pinned at
+        // `bottom: calc(64px + safe-area)`, so this makes the nav sit flush
+        // beneath them with no gap for content to peek through.
+        height: "calc(64px + env(safe-area-inset-bottom))",
+        boxSizing: "border-box",
         background: "var(--card)",
         borderTop: "1px solid var(--line-2)",
-        padding: "9px 14px env(safe-area-inset-bottom)",
+        padding: "0 14px",
+        paddingBottom: "env(safe-area-inset-bottom)",
         display: "flex",
-        alignItems: "flex-start",
+        alignItems: "center",
         justifyContent: "space-around",
       }}
     >

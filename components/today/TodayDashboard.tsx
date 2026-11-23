@@ -7,9 +7,7 @@ import { CaptureBar, Checkbox, TypeShape, StreakChain } from "@/components/primi
 import { useSyncedStore } from "@/lib/hooks/useSyncedStore";
 import { parseCapture } from "@/lib/services/capture";
 import type { Category, ItemType } from "@/lib/domain/types";
-
-// ─── Identity ─────────────────────────────────────────────────────────────────
-const USER_NAME = "DJ";
+import { currentProfile, switchProfile, PROFILE_LABEL, PROFILE_INITIAL, type Profile } from "@/lib/profile";
 
 // ─── Stored shapes ────────────────────────────────────────────────────────────
 interface TaskItem {
@@ -113,12 +111,28 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 export function TodayDashboard() {
   const [tasks, setTasks]   = useSyncedStore<TaskItem[]>("pcc-tasks", []);
-  const [habits, setHabits] = useSyncedStore<HabitItem[]>("pcc-habits", []);
+  const [habits, setHabits, habitsLoaded] = useSyncedStore<HabitItem[]>("pcc-habits", []);
+  const [habitsResetDate, setHabitsResetDate, habitsResetLoaded] = useSyncedStore<string>("pcc-habits-reset", "");
   const [activeCat, setActiveCat] = useState<ActiveCat>("all");
   const [captureParsing, setCaptureParsing] = useState(false);
   const [captureToast, setCaptureToast] = useState<string | null>(null);
   const [addingRoutine, setAddingRoutine] = useState(false);
   const [routineDraft, setRoutineDraft] = useState("");
+
+  // Daily reset: clear each routine's done-state at the start of a new day.
+  useEffect(() => {
+    if (!habitsLoaded || !habitsResetLoaded) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (habitsResetDate !== today) {
+      setHabits(prev => prev.map(h => ({ ...h, done: false })));
+      setHabitsResetDate(today);
+    }
+  }, [habitsLoaded, habitsResetLoaded, habitsResetDate, setHabits, setHabitsResetDate]);
+
+  // Profile identity — read client-side (cookie) to avoid hydration mismatch.
+  const [profile, setProfile] = useState<Profile | null>(null);
+  useEffect(() => { setProfile(currentProfile()); }, []);
+  const name = profile ? PROFILE_LABEL[profile] : "";
 
   // Current time — set on client only to avoid SSR/timezone hydration mismatch.
   const [now, setNow] = useState<Date | null>(null);
@@ -479,7 +493,7 @@ export function TodayDashboard() {
             {dateLabel}
           </div>
           <h1 style={{ margin: "7px 0 0", fontSize: 31, fontWeight: 700, letterSpacing: "-0.025em", whiteSpace: "nowrap" }}>
-            {greeting}, {USER_NAME}
+            {greeting}{name ? `, ${name}` : ""}
           </h1>
         </div>
         <div style={{
@@ -557,10 +571,24 @@ export function TodayDashboard() {
             {dateLabel}
           </div>
           <h1 style={{ margin: "5px 0 0", fontSize: 25, fontWeight: 700, letterSpacing: "-0.025em", lineHeight: 1.15 }}>
-            {greeting}, {USER_NAME}
+            {greeting}{name ? `, ${name}` : ""}
           </h1>
         </div>
-        <div style={{ marginTop: 4 }}>
+        <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 9 }}>
+          <button
+            onClick={switchProfile}
+            aria-label="Switch profile"
+            title="Switch profile"
+            style={{
+              width: 34, height: 34, borderRadius: 99, flexShrink: 0,
+              background: "var(--accent-soft)", color: "var(--accent-ink)",
+              border: "1px solid var(--accent-soft-2)", cursor: "pointer",
+              fontFamily: "inherit", fontSize: 14, fontWeight: 800,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            {profile ? PROFILE_INITIAL[profile] : ""}
+          </button>
           <ThemeSwitcher />
         </div>
       </div>

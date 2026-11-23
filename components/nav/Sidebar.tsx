@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { currentProfile, switchProfile, PROFILE_LABEL, PROFILE_INITIAL, type Profile } from "@/lib/profile";
 
 const navItems = [
   { href: "/",        label: "Today",    dot: "var(--accent)" },
@@ -12,6 +14,8 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  useEffect(() => { setProfile(currentProfile()); }, []);
 
   return (
     <aside
@@ -144,8 +148,16 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* User chip */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {/* User chip — tap to switch profile */}
+      <button
+        onClick={switchProfile}
+        title="Switch profile"
+        style={{
+          display: "flex", alignItems: "center", gap: 10,
+          width: "100%", textAlign: "left", cursor: "pointer",
+          background: "transparent", border: "none", padding: 0, fontFamily: "inherit",
+        }}
+      >
         <div
           style={{
             width: 32,
@@ -161,13 +173,16 @@ export function Sidebar() {
             color: "var(--avatar-ink)",
           }}
         >
-          AK
+          {profile ? PROFILE_INITIAL[profile] : ""}
         </div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>Arun K.</div>
-          <div style={{ fontSize: 11.5, color: "var(--ink-mute)", fontWeight: 600 }}>Personal</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+            {profile ? PROFILE_LABEL[profile] : ""}
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--ink-mute)", fontWeight: 600 }}>Switch profile</div>
         </div>
-      </div>
+        <span style={{ fontSize: 14, color: "var(--ink-dim)", fontWeight: 700 }}>⇄</span>
+      </button>
     </aside>
   );
 }

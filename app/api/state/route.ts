@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server";
-import { getServiceClient, getDevUserId } from "@/lib/supabase/admin";
+import { getServiceClient, getUserId, profileFromCookie } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
 /**
- * Per-user key/value store backing useSyncedStore. GET ?key=… returns the
- * value (or null); PUT { key, value } upserts it. All access is server-side via
- * the service role + the resolved dev user, so RLS-protected rows are reachable
- * without a login session. Degrades to null/no-op if Supabase isn't ready.
+ * Per-profile key/value store backing useSyncedStore. GET ?key=… returns the
+ * value (or null); PUT { key, value } upserts it. The active profile comes from
+ * the `pcc-profile` cookie, so DJ and Aditi read/write completely separate rows.
+ * All access is server-side via the service role, so RLS-protected rows are
+ * reachable without a login session. Degrades to null/no-op if Supabase isn't ready.
  */
 export async function GET(req: Request) {
   const key = new URL(req.url).searchParams.get("key");
   if (!key) return NextResponse.json({ error: "key required" }, { status: 400 });
 
   const sb = getServiceClient();
-  const uid = await getDevUserId();
+  const uid = await getUserId(profileFromCookie(req.headers.get("cookie")));
   if (!sb || !uid) return NextResponse.json({ value: null });
 
   try {
@@ -41,7 +42,7 @@ export async function PUT(req: Request) {
   if (!key) return NextResponse.json({ error: "key required" }, { status: 400 });
 
   const sb = getServiceClient();
-  const uid = await getDevUserId();
+  const uid = await getUserId(profileFromCookie(req.headers.get("cookie")));
   if (!sb || !uid) return NextResponse.json({ ok: false });
 
   try {

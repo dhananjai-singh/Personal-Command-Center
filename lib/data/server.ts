@@ -1,10 +1,10 @@
 import "server-only";
-import { getServiceClient, getDevUserId } from "@/lib/supabase/admin";
+import { getServiceClient, getUserId, type Profile } from "@/lib/supabase/admin";
 
 /**
- * Read-only access to the user's synced data for Ask-AI grounding. Reads the
+ * Read-only access to a profile's synced data for Ask-AI grounding. Reads the
  * same `app_state` key/value rows the UI writes via useSyncedStore, so the
- * assistant reasons over exactly what the user sees. Degrades to null on any
+ * assistant reasons over exactly what that person sees. Degrades to null on any
  * failure so the Ask route falls back to canned answers.
  */
 
@@ -17,9 +17,9 @@ export interface UserContext {
 
 const KEYS = ["pcc-tasks", "pcc-habits", "pcc-meals", "pcc-weights"];
 
-export async function fetchUserContext(): Promise<UserContext | null> {
+export async function fetchUserContext(profile: Profile): Promise<UserContext | null> {
   const sb = getServiceClient();
-  const uid = await getDevUserId();
+  const uid = await getUserId(profile);
   if (!sb || !uid) return null;
 
   try {

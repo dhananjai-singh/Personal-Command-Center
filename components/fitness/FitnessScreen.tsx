@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { analyseText } from "@/lib/services/nutrition";
 import { useSyncedStore } from "@/lib/hooks/useSyncedStore";
@@ -27,6 +27,14 @@ interface WeightEntry {
   date: string; // YYYY-MM-DD
   kg: number;
 }
+interface DayLog {
+  rows: MealRow[];
+  totalCal: number;
+  macroP: number;
+  macroC: number;
+  macroF: number;
+}
+type MealHistory = Record<string, DayLog>;
 
 const DEFAULT_STATS: FitStats = {
   steps: 0, stepGoal: 10000, distanceKm: 0, activeCal: 0, restingHr: 0, calGoal: 2200,
@@ -182,15 +190,27 @@ function WeightChart({ data }: { data: WeightEntry[] }) {
   );
 }
 
+function formatHistoryDate(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  const prev = new Date();
+  prev.setDate(prev.getDate() - 1);
+  if (dateStr === prev.toISOString().slice(0, 10)) return "Yesterday";
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Phase = "closed" | "snap" | "text" | "detecting" | "results";
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function FitnessScreen() {
   const router = useRouter();
-  const [meals, setMeals] = useSyncedStore<MealRow[]>("pcc-meals", []);
+  const [meals, setMeals, mealsLoaded] = useSyncedStore<MealRow[]>("pcc-meals", []);
+  const [mealsDate, setMealsDate, mealsDateLoaded] = useSyncedStore<string>("pcc-meals-date", "");
+  const [mealHistory, setMealHistory, mealHistoryLoaded] = useSyncedStore<MealHistory>("pcc-meal-history", {});
   const [stats, setStats] = useSyncedStore<FitStats>("pcc-fitstats", DEFAULT_STATS);
   const [weights, setWeights] = useSyncedStore<WeightEntry[]>("pcc-weights", []);
+  const [historyRange, setHistoryRange] = useState<"week" | "month">("week");
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [editingStats, setEditingStats] = useState(false);
   const [weightDraft, setWeightDraft] = useState("");
 
@@ -210,6 +230,28 @@ export function FitnessScreen() {
   }, []);
   const dateLabel = now ? now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "";
 
+  // Daily reset: archive yesterday's log into history, then start fresh.
+  useEffect(() => {
+    if (!mealsLoaded || !mealsDateLoaded || !mealHistoryLoaded) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (mealsDate !== today) {
+      if (mealsDate && meals.length > 0) {
+        setMealHistory(prev => ({
+          ...prev,
+          [mealsDate]: {
+            rows: meals,
+            totalCal: meals.reduce((a, m) => a + m.cal, 0),
+            macroP:   meals.reduce((a, m) => a + m.p, 0),
+            macroC:   meals.reduce((a, m) => a + m.c, 0),
+            macroF:   meals.reduce((a, m) => a + m.f, 0),
+          },
+        }));
+      }
+      setMeals([]);
+      setMealsDate(today);
+    }
+  }, [mealsLoaded, mealsDateLoaded, mealHistoryLoaded, mealsDate, meals, setMeals, setMealsDate, setMealHistory]);
+
   const totalEaten = meals.reduce((a, m) => a + m.cal, 0);
   const macroP = meals.reduce((a, m) => a + m.p, 0);
   const macroC = meals.reduce((a, m) => a + m.c, 0);
@@ -220,6 +262,18 @@ export function FitnessScreen() {
   const latestWeight = sortedWeights[sortedWeights.length - 1];
   const prevWeight = sortedWeights[sortedWeights.length - 2];
   const weightDelta = latestWeight && prevWeight ? +(latestWeight.kg - prevWeight.kg).toFixed(1) : null;
+
+  const historyDays = useMemo(() => {
+    const n = historyRange === "week" ? 7 : 30;
+    const result: { date: string; log: DayLog }[] = [];
+    for (let i = 1; i <= n; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      if (mealHistory[key]?.rows?.length) result.push({ date: key, log: mealHistory[key] });
+    }
+    return result;
+  }, [historyRange, mealHistory]);
 
   const logWeight = useCallback(() => {
     const kg = parseFloat(weightDraft);
@@ -510,6 +564,90 @@ export function FitnessScreen() {
               <MealListRow key={i} meal={m} onDelete={() => setMeals(prev => prev.filter((_, j) => j !== i))} />
             ))
           )}
+        </div>
+
+        {/* food history */}
+        <div style={{ margin: "24px 18px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em" }}>Food history</h2>
+            <div style={{ display: "flex", gap: 6 }}>
+              {(["week", "month"] as const).map(r => (
+                <button key={r} onClick={() => setHistoryRange(r)} style={{
+                  border: `1px solid ${historyRange === r ? "transparent" : "var(--line-2)"}`,
+                  borderRadius: 99,
+                  background: historyRange === r ? "var(--accent)" : "var(--card)",
+                  color: historyRange === r ? "var(--on-accent-2)" : "var(--ink-mute)",
+                  fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+                  padding: "5px 13px", cursor: "pointer",
+                }}>
+                  {r === "week" ? "7 days" : "30 days"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 9 }}>
+            {historyDays.length === 0 ? (
+              <div style={{
+                padding: "24px 4px", textAlign: "center",
+                fontSize: 13.5, color: "var(--ink-mute)", fontWeight: 600,
+              }}>
+                No history yet — your food logs will appear here the next day.
+              </div>
+            ) : historyDays.map(({ date, log }) => (
+              <div key={date} style={{
+                background: "var(--card)", border: "1px solid var(--line-2)",
+                borderRadius: 18, overflow: "hidden",
+              }}>
+                <div
+                  onClick={() => setExpandedDay(prev => prev === date ? null : date)}
+                  style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", cursor: "pointer" }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 700, letterSpacing: "-0.01em" }}>
+                      {formatHistoryDate(date)}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--ink-mute)", fontWeight: 600, marginTop: 2 }}>
+                      P {log.macroP}g · C {log.macroC}g · F {log.macroF}g · {log.rows.length} meal{log.rows.length !== 1 ? "s" : ""}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-0.02em" }}>{log.totalCal}</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-dim)", fontWeight: 700 }}>kcal</div>
+                  </div>
+                  <span style={{
+                    fontSize: 16, color: "var(--ink-dim)", fontWeight: 700,
+                    display: "inline-block",
+                    transition: "transform .2s",
+                    transform: expandedDay === date ? "rotate(90deg)" : "none",
+                  }}>›</span>
+                </div>
+
+                {expandedDay === date && (
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "8px 15px 13px" }}>
+                    {log.rows.map((m, i) => (
+                      <div key={i} style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        padding: "9px 0",
+                        borderTop: i === 0 ? "none" : "1px solid var(--line-2)",
+                      }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 700 }}>{m.name}</div>
+                          <div style={{ fontSize: 11.5, color: "var(--ink-mute)", fontWeight: 600, marginTop: 1 }}>
+                            {m.time} · P {m.p}g · C {m.c}g · F {m.f}g
+                          </div>
+                        </div>
+                        <div style={{ flexShrink: 0, fontSize: 14, fontWeight: 800, letterSpacing: "-0.01em" }}>
+                          {m.cal}
+                          <span style={{ fontSize: 10, color: "var(--ink-dim)", fontWeight: 700, marginLeft: 2 }}>kcal</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* AI nutrition strip */}

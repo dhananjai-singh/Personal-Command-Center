@@ -1,9 +1,10 @@
 import { Sidebar } from "@/components/nav/Sidebar";
 import { BottomNav } from "@/components/nav/BottomNav";
+import { ProfileGate } from "@/components/system/ProfileGate";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    <ProfileGate>
       {/* ── Desktop: sidebar + scrollable main ────────────────────────────── */}
       <div className="hidden md:flex min-h-dvh" style={{ background: "var(--bg)" }}>
         <Sidebar />
@@ -22,6 +23,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
         <BottomNav />
       </div>
-    </>
+    </ProfileGate>
   );
 }

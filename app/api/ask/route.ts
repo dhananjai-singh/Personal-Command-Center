@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { chat, parseJSON, isLLMConfigured } from "@/lib/openai/client";
 import type { AiAnswer, AiCard } from "@/lib/services/ask-ai/mock";
 import { fetchUserContext } from "@/lib/data/server";
+import { profileFromCookie } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -71,8 +72,8 @@ export async function POST(req: Request) {
     });
   }
 
-  // Ground every answer in the user's real synced data (may be empty).
-  const ctx = await fetchUserContext();
+  // Ground every answer in this profile's real synced data (may be empty).
+  const ctx = await fetchUserContext(profileFromCookie(req.headers.get("cookie")));
   const dataJson = JSON.stringify(ctx ?? { tasks: [], habits: [], meals: [], weights: [] });
 
   try {
